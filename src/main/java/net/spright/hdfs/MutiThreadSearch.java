@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.Path;
 
 public class MutiThreadSearch {
 
+    @SuppressWarnings("empty-statement")
     public static void main(String[] args) throws InterruptedException, IOException {
         final int searchThreadCount = 10;
         final int pageCount = 500;
@@ -51,7 +52,8 @@ public class MutiThreadSearch {
         }
     
         service.shutdown();
-        service.awaitTermination(1, TimeUnit.SECONDS);
+        while(!service.awaitTermination(1, TimeUnit.SECONDS));
+        
         long endTime   = System.currentTimeMillis();
         long totalTime = endTime - startTime;
         outputSearchResult(resultMap, totalTime);
@@ -84,15 +86,30 @@ public class MutiThreadSearch {
             int score = 0;
             Path path;
             try {
-                while ((path = pageQueue.take()) != null) {
+                while (!pageQueue.isEmpty()) {
+                    path = pageQueue.take();
                     
                     HtmlPage page = getHtmlPage(fs, path);
                     // content, calculate corelation
-                    System.out.println("Search link: " + page.link);
+                    //System.out.println("Search link: " + page.link);
+                    //System.out.println(page.title);
+                    if (page.title.toLowerCase().contains(keyword.toLowerCase())) {
+                        score += 5;
+                    }
+                    String[] words = page.content.trim().split("\\s++");
+                    for (int i = 0; i < words.length; ++ i) {
+                        //System.out.println(words[i]);
+                        if (words[i].contains(keyword.toLowerCase())) {
+                            score += 1;
+                        }
+                    }
+                           
+                    if (score > 0) {
+                        resultMap.put(page.link, score);
+                    }
                    
-                   
-                    resultMap.put(page.link, score);
                 }       
+                //System.out.println("Finish search");
             } catch (InterruptedException ex) {
                 System.out.println(ex);
                 Thread.currentThread().interrupt();
@@ -154,7 +171,7 @@ public class MutiThreadSearch {
             @Override
             public int compare( Map.Entry<String, Integer> o1, 
                     Map.Entry<String, Integer> o2) {
-                return (o1.getValue()).compareTo( o2.getValue() );
+                return (o2.getValue()).compareTo(o1.getValue() );
             }
         });
        Iterator it = list.iterator();
@@ -163,7 +180,8 @@ public class MutiThreadSearch {
           Map.Entry entry;  
           entry = (Map.Entry) it.next();
           
-          System.out.println(entry.getKey().toString() + entry.getValue().toString());
+          System.out.println(entry.getKey().toString() + " / " 
+                  + entry.getValue().toString());
         }               
         System.out.println("Search Time: " + totalTime);
         System.out.println("Match link count: " + list.size());
