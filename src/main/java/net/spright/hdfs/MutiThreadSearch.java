@@ -90,6 +90,10 @@ public class MutiThreadSearch {
                     path = pageQueue.take();
                     
                     HtmlPage page = getHtmlPage(fs, path);
+                    if (page == null || page.link == null 
+                            || page.title == null || page.content == null) {
+                        continue;
+                    }
                     // content, calculate corelation
                     //System.out.println("Search link: " + page.link);
                     //System.out.println(page.title);
@@ -142,11 +146,15 @@ public class MutiThreadSearch {
     private static HtmlPage getHtmlPage(FileSystem fs, Path path)
             throws IOException {     
         
+        if (!fs.getFileStatus(path).isFile()){
+            return null;
+        }
+                
         try (BufferedReader reader = new BufferedReader(
             new InputStreamReader(
                 fs.open(path)
                 , Charset.forName("UTF-8")))) {
-                 
+             
             String link = reader.readLine();
             String title = reader.readLine();
             String line;
