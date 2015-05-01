@@ -88,7 +88,7 @@ public class MutiThreadSearch {
             try {
                 while (!pageQueue.isEmpty()) {
                     path = pageQueue.take();
-                    
+                    score = 0;
                     HtmlPage page = getHtmlPage(fs, path);
                     if (page == null || page.link == null 
                             || page.title == null || page.content == null) {
