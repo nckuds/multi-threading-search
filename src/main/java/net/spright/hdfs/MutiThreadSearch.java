@@ -38,6 +38,7 @@ public class MutiThreadSearch {
             searchThreadCount 
         );
         BlockingQueue<Path> pageQueue = new ArrayBlockingQueue(pageCount);
+        long startTime = System.currentTimeMillis();
         
         try {
             initPageQueue(fs, pageQueue);
@@ -50,8 +51,10 @@ public class MutiThreadSearch {
         }
     
         service.shutdown();
-        service.awaitTermination(5, TimeUnit.SECONDS);
-        outputSearchResult(resultMap);
+        service.awaitTermination(1, TimeUnit.SECONDS);
+        long endTime   = System.currentTimeMillis();
+        long totalTime = endTime - startTime;
+        outputSearchResult(resultMap, totalTime);
         System.exit(0);
     }
     private static void waitSomething(int time) throws InterruptedException {
@@ -141,7 +144,9 @@ public class MutiThreadSearch {
         
     }
     
-    private static void outputSearchResult(Map<String, Integer> map) {
+    private static void outputSearchResult(Map<String, Integer> map, 
+            long totalTime) {
+        
         List<Map.Entry<String, Integer>> list =
             new LinkedList<>( map.entrySet() );
         System.out.println("output:");
@@ -153,13 +158,15 @@ public class MutiThreadSearch {
             }
         });
        Iterator it = list.iterator();
+       System.out.println("Links found: ");
        while(it.hasNext()) {
           Map.Entry entry;  
           entry = (Map.Entry) it.next();
           
           System.out.println(entry.getKey().toString() + entry.getValue().toString());
-         
         }               
+        System.out.println("Search Time: " + totalTime);
+        System.out.println("Match link count: " + list.size());
     }      
   
     private static class HtmlPage {
