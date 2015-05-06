@@ -18,7 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Stream;
+//import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -30,7 +30,7 @@ public class MutiThreadSearch {
     @SuppressWarnings("empty-statement")
     public static void main(String[] args) throws InterruptedException, IOException {
         final int searchThreadCount = 10;
-        final int pageCount = 500;
+        final int pageCount = 100000;
         Map<String, Integer> resultMap = new HashMap<>();
         final String keyword = args[0];
         final FileSystem fs = getFileSystem();
@@ -42,7 +42,8 @@ public class MutiThreadSearch {
         long startTime = System.currentTimeMillis();
         
         try {
-            initPageQueue(fs, pageQueue);
+            service.execute(new PageLoader(fs, pageQueue, searchThreadCount));
+            //initPageQueue(fs, pageQueue);
         } catch (IOException ex) {
            System.out.println(ex);
         }
@@ -84,10 +85,16 @@ public class MutiThreadSearch {
         @Override
         public void run() {
             int score = 0;
+            int cnt = 1;
             Path path;
+            Path endPoint = new Path("/");
             try {
-                while (!pageQueue.isEmpty()) {
+                
+                while (true) {
                     path = pageQueue.take();
+                    if (path.equals(endPoint))  // check ending point
+                        break;
+                    cnt++;
                     score = 0;
                     HtmlPage page = getHtmlPage(fs, path);
                     if (page == null || page.link == null 
@@ -101,7 +108,7 @@ public class MutiThreadSearch {
                         score += 5;
                     }
                     String[] words = page.content.trim().split("\\s++");
-                    for (int i = 0; i < words.length; ++ i) {
+                    for (int i = 0; i < words.length; ++i) {
                         //System.out.println(words[i]);
                         if (words[i].contains(keyword.toLowerCase())) {
                             score += 1;
@@ -109,9 +116,11 @@ public class MutiThreadSearch {
                     }
                            
                     if (score > 0) {
+                        //System.out.println("title: " + page.title);
+                        //System.out.println("link: " + page.link + "\n");
                         resultMap.put(page.link, score);
                     }
-                   
+                  
                 }       
                 //System.out.println("Finish search");
             } catch (InterruptedException ex) {
@@ -124,18 +133,46 @@ public class MutiThreadSearch {
         }
     }
     
-    private static void initPageQueue(FileSystem fs, 
-            BlockingQueue<Path> pageQueue) throws IOException {
-        FileStatus[] status = fs.listStatus(new Path("hdfs://course/user/course"));
-        for (FileStatus s : status) {
+    private static class PageLoader implements Runnable {
+        private BlockingQueue<Path> pageQueue;
+        private FileStatus[] status;
+        private int searchThreadCount;
+        public PageLoader(
+                FileSystem fs,
+                BlockingQueue<Path> pageQueue,
+                int searchThreadCount
+        ) throws IOException {
+            this.pageQueue = pageQueue;
+            this.status = fs.listStatus(new Path("hdfs://course/user/course"));
+            this.searchThreadCount = searchThreadCount;
+            System.out.println("total file: " + this.status.length);
+        }
+        
+        @Override
+        public void run(){
             try {
-                //System.out.println(s.toString());
-                pageQueue.put(s.getPath());
+                Path endPoint = new Path("/");
+                for(FileStatus s : status) {
+                    //System.out.print(cnt++);
+                    //System.out.println(" - " + s.getPath().getName());
+                    pageQueue.put(s.getPath());
+                }
+                for (int i = 0; i != searchThreadCount; ++i) {
+                    // set ending point
+                    pageQueue.put(endPoint);
+                }
+                System.out.println("page loader done");
+                while(!pageQueue.isEmpty()){
+                    // stop until empty
+                }
+                System.out.println("All done.");
             } catch (InterruptedException ex) {
+                System.out.println(ex);
                 Logger.getLogger(MutiThreadSearch.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
     }
+    
     
     private static FileSystem getFileSystem() throws IOException {
        Configuration configuration = new Configuration();
@@ -163,7 +200,7 @@ public class MutiThreadSearch {
             while ((line = reader.readLine()) != null) {
                 content.append(line);
             }
-               
+            
             return new HtmlPage(link, title, content.toString());
         }
         
